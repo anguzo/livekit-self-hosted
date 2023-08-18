@@ -247,3 +247,7 @@ chmod 755 /opt/livekit/update_ip.sh
 
 systemctl enable livekit-docker
 systemctl start livekit-docker
+
+unlink /etc/resolv.conf
+ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+reboot
