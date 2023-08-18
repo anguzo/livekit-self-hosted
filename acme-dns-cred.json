@@ -1,0 +1,9 @@
+{
+  "myhost.com": {
+    "username": "<username>",
+    "password": "<password>",
+    "fulldomain": "<full domain from registration response>",
+    "subdomain": "<subdomain>",
+    "server_url": "<server URL>"
+  }
+}

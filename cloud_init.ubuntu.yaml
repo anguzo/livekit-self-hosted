@@ -62,9 +62,16 @@ write_files:
         tls:
           certificates:
             automate:
-              - livekit.myhost.com
-              - livekit-turn.myhost.com
-              - livekit-whip.myhost.com
+              - "*.myhost.com"
+          automation:
+            policies:
+              - issuers:
+                  - module: acme
+                    challenges:
+                      dns:
+                        provider:
+                          name: acmedns
+                          config_file_path: /etc/acme-dns-cred.json
         layer4:
           servers:
             main:
@@ -116,13 +123,14 @@ write_files:
       # This compose will not function correctly on Mac or Windows
       services:
         caddy:
-          image: livekit/caddyl4
+          image: anguzo/caddyl4-acmedns:2.6.4
           command: run --config /etc/caddy.yaml --adapter yaml
           restart: unless-stopped
           network_mode: "host"
           volumes:
             - ./caddy.yaml:/etc/caddy.yaml
             - ./caddy_data:/data
+            - ./acme-dns-cred.json:/etc/acme-dns-cred.json
         livekit:
           image: livekit/livekit-server:latest
           command: --config /etc/livekit.yaml
@@ -205,6 +213,18 @@ write_files:
           use_external_ip: true
           enable_loopback_candidate: false
       
+
+  - path: /opt/livekit/acme-dns-cred.json
+    content: |
+      {
+        "myhost.com": {
+          "username": "<username>",
+          "password": "<password>",
+          "fulldomain": "<full domain from registration response>",
+          "subdomain": "<subdomain>",
+          "server_url": "<server URL>"
+        }
+      }
 
 
 runcmd:

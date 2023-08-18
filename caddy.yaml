@@ -9,9 +9,16 @@ apps:
   tls:
     certificates:
       automate:
-        - livekit.myhost.com
-        - livekit-turn.myhost.com
-        - livekit-whip.myhost.com
+        - "*.myhost.com"
+    automation:
+      policies:
+        - issuers:
+            - module: acme
+              challenges:
+                dns:
+                  provider:
+                    name: acmedns
+                    config_file_path: /etc/acme-dns-cred.json
   layer4:
     servers:
       main:

@@ -66,9 +66,16 @@ apps:
   tls:
     certificates:
       automate:
-        - livekit.myhost.com
-        - livekit-turn.myhost.com
-        - livekit-whip.myhost.com
+        - "*.myhost.com"
+    automation:
+      policies:
+        - issuers:
+            - module: acme
+              challenges:
+                dns:
+                  provider:
+                    name: acmedns
+                    config_file_path: /etc/acme-dns-cred.json
   layer4:
     servers:
       main:
@@ -124,13 +131,14 @@ cat << EOF > /opt/livekit/docker-compose.yaml
 # This compose will not function correctly on Mac or Windows
 services:
   caddy:
-    image: livekit/caddyl4
+    image: anguzo/caddyl4-acmedns:2.6.4
     command: run --config /etc/caddy.yaml --adapter yaml
     restart: unless-stopped
     network_mode: "host"
     volumes:
       - ./caddy.yaml:/etc/caddy.yaml
       - ./caddy_data:/data
+      - ./acme-dns-cred.json:/etc/acme-dns-cred.json
   livekit:
     image: livekit/livekit-server:latest
     command: --config /etc/livekit.yaml
@@ -216,6 +224,20 @@ rtc_config:
     udp_port: 7885
     use_external_ip: true
     enable_loopback_candidate: false
+
+
+EOF
+# acme-dns credentials
+cat << EOF > /opt/livekit/acme-dns-cred.json
+{
+  "myhost.com": {
+    "username": "<username>",
+    "password": "<password>",
+    "fulldomain": "<full domain from registration response>",
+    "subdomain": "<subdomain>",
+    "server_url": "<server URL>"
+  }
+}
 
 
 EOF

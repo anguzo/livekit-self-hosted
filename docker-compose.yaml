@@ -2,13 +2,14 @@
 # This compose will not function correctly on Mac or Windows
 services:
   caddy:
-    image: livekit/caddyl4
+    image: anguzo/caddyl4-acmedns:2.6.4
     command: run --config /etc/caddy.yaml --adapter yaml
     restart: unless-stopped
     network_mode: "host"
     volumes:
       - ./caddy.yaml:/etc/caddy.yaml
       - ./caddy_data:/data
+      - ./acme-dns-cred.json:/etc/acme-dns-cred.json
   livekit:
     image: livekit/livekit-server:latest
     command: --config /etc/livekit.yaml
