@@ -24,7 +24,7 @@ rtc:
     tcp_port: 7881
     port_range_start: 50000
     port_range_end: 60000
-    use_external_ip: true
+    use_external_ip: false
     enable_loopback_candidate: false
 redis:
     address: localhost:6379
@@ -140,7 +140,7 @@ services:
       - ./caddy_data:/data
       - ./acme-dns-cred.json:/etc/acme-dns-cred.json
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.4
     command: --config /etc/livekit.yaml
     restart: unless-stopped
     network_mode: "host"
@@ -154,7 +154,7 @@ services:
     volumes:
       - ./redis.conf:/etc/redis.conf
   ingress:
-    image: livekit/ingress:latest
+    image: livekit/ingress:v1.1
     restart: unless-stopped
     environment:
       - INGRESS_CONFIG_FILE=/etc/ingress.yaml
@@ -222,8 +222,13 @@ logging:
 development: false
 rtc_config:
     udp_port: 7885
-    use_external_ip: true
+    use_external_ip: false
     enable_loopback_candidate: false
+cpu_cost:
+    rtmp_cpu_cost: 2.0
+    whip_cpu_cost: 2.0
+    whip_bypass_transcoding_cpu_cost: 0.1
+    url_cpu_cost: 2
 
 
 EOF

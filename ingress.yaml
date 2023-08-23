@@ -22,5 +22,10 @@ logging:
 development: false
 rtc_config:
     udp_port: 7885
-    use_external_ip: true
+    use_external_ip: false
     enable_loopback_candidate: false
+cpu_cost:
+    rtmp_cpu_cost: 2.0
+    whip_cpu_cost: 2.0
+    whip_bypass_transcoding_cpu_cost: 0.1
+    url_cpu_cost: 2

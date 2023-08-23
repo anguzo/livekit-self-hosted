@@ -11,7 +11,7 @@ services:
       - ./caddy_data:/data
       - ./acme-dns-cred.json:/etc/acme-dns-cred.json
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.4
     command: --config /etc/livekit.yaml
     restart: unless-stopped
     network_mode: "host"
@@ -25,7 +25,7 @@ services:
     volumes:
       - ./redis.conf:/etc/redis.conf
   ingress:
-    image: livekit/ingress:latest
+    image: livekit/ingress:v1.1
     restart: unless-stopped
     environment:
       - INGRESS_CONFIG_FILE=/etc/ingress.yaml
