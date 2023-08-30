@@ -1,0 +1,268 @@
+#cloud-config
+autoinstall:
+  version: 1
+  user-data:
+    hostname: livekit-server
+    users:
+      - name: livekit
+        lock_passwd: true
+        ssh_authorized_keys:
+          - add a public SSH key to later SSH in
+        sudo: ALL=(ALL) NOPASSWD:ALL
+
+    package_update: true
+    package_upgrade: all
+
+    packages:
+      - docker.io
+
+    bootcmd:
+      - mkdir -p /opt/livekit/caddy_data
+      - mkdir -p /usr/local/bin
+
+    write_files:
+      - path: /opt/livekit/livekit.yaml
+        content: |
+          port: 7880
+          bind_addresses:
+              - ""
+          rtc:
+              tcp_port: 7881
+              port_range_start: 50000
+              port_range_end: 60000
+              use_external_ip: false
+              enable_loopback_candidate: false
+          redis:
+              address: localhost:6379
+              username: ""
+              password: ""
+              db: 0
+              use_tls: false
+              sentinel_master_name: ""
+              sentinel_username: ""
+              sentinel_password: ""
+              sentinel_addresses: []
+              cluster_addresses: []
+              max_redirects: null
+          turn:
+              enabled: true
+              domain: livekit-turn.myhost.com
+              tls_port: 5349
+              udp_port: 3478
+              external_tls: true
+          ingress:
+              rtmp_base_url: rtmp://livekit.myhost.com:1935/x
+              whip_base_url: https://livekit-whip.myhost.com/w
+          keys:
+              APIVg6jLoiMwFHp: O7CKx1ptmrBOtM6bMePQq0derknyE5jbjnYXlRm4oG0
+          
+
+      - path: /opt/livekit/caddy.yaml
+        content: |
+          logging:
+            logs:
+              default:
+                level: INFO
+          storage:
+            "module": "file_system"
+            "root": "/data"
+          apps:
+            tls:
+              certificates:
+                automate:
+                  - "*.myhost.com"
+              automation:
+                policies:
+                  - issuers:
+                      - module: acme
+                        challenges:
+                          dns:
+                            provider:
+                              name: acmedns
+                              config_file_path: /etc/acme-dns-cred.json
+            layer4:
+              servers:
+                main:
+                  listen: [":443"]
+                  routes:
+                    - match:
+                      - tls:
+                          sni:
+                            - "livekit-turn.myhost.com"
+                      handle:
+                        - handler: tls
+                        - handler: proxy
+                          upstreams:
+                            - dial: ["localhost:5349"]
+                    - match:
+                        - tls:
+                            sni:
+                              - "livekit.myhost.com"
+                      handle:
+                        - handler: tls
+                          connection_policies:
+                            - alpn: ["http/1.1"]
+                        - handler: proxy
+                          upstreams:
+                            - dial: ["localhost:7880"]
+                    - match:
+                        - tls:
+                            sni:
+                              - "livekit-whip.myhost.com"
+                      handle:
+                        - handler: tls
+                          connection_policies:
+                            - alpn: ["http/1.1"]
+                        - handler: proxy
+                          upstreams:
+                            - dial: ["localhost:8080"]
+          
+
+      - path: /opt/livekit/update_ip.sh
+        content: |
+          #!/usr/bin/env bash
+          ip=`ip addr show |grep "inet " |grep -v 127.0.0. |head -1|cut -d" " -f6|cut -d/ -f1`
+          sed -i.orig -r "s/\\\"(.+)(\:5349)/\\\"$ip\2/" /opt/livekit/caddy.yaml
+          
+
+      - path: /opt/livekit/docker-compose.yaml
+        content: |
+          # This docker-compose requires host networking, which is only available on Linux
+          # This compose will not function correctly on Mac or Windows
+          services:
+            caddy:
+              image: anguzo/caddyl4-acmedns:2.6.4
+              command: run --config /etc/caddy.yaml --adapter yaml
+              restart: unless-stopped
+              network_mode: "host"
+              volumes:
+                - ./caddy.yaml:/etc/caddy.yaml
+                - ./caddy_data:/data
+                - ./acme-dns-cred.json:/etc/acme-dns-cred.json
+            livekit:
+              image: livekit/livekit-server:v1.4
+              command: --config /etc/livekit.yaml
+              restart: unless-stopped
+              network_mode: "host"
+              volumes:
+                - ./livekit.yaml:/etc/livekit.yaml
+            redis:
+              image: redis:7-alpine
+              command: redis-server /etc/redis.conf
+              restart: unless-stopped
+              network_mode: "host"
+              volumes:
+                - ./redis.conf:/etc/redis.conf
+            ingress:
+              image: livekit/ingress:v1.1
+              restart: unless-stopped
+              environment:
+                - INGRESS_CONFIG_FILE=/etc/ingress.yaml
+              network_mode: "host"
+              volumes:
+                - ./ingress.yaml:/etc/ingress.yaml
+          
+
+      - path: /etc/systemd/system/livekit-docker.service
+        content: |
+          [Unit]
+          Description=LiveKit Server Container
+          After=docker.service
+          Requires=docker.service
+          
+          [Service]
+          LimitNOFILE=500000
+          Restart=always
+          WorkingDirectory=/opt/livekit
+          # Shutdown container (if running) when unit is started
+          ExecStartPre=/usr/local/bin/docker-compose -f docker-compose.yaml down
+          ExecStart=/usr/local/bin/docker-compose -f docker-compose.yaml up
+          ExecStop=/usr/local/bin/docker-compose -f docker-compose.yaml down
+          
+          [Install]
+          WantedBy=multi-user.target
+          
+
+      - path: /opt/livekit/redis.conf
+        content: |
+          bind 127.0.0.1 ::1
+          protected-mode yes
+          port 6379
+          timeout 0
+          tcp-keepalive 300
+          
+
+      - path: /opt/livekit/ingress.yaml
+        content: |
+          redis:
+              address: localhost:6379
+              username: ""
+              password: ""
+              db: 0
+              use_tls: false
+              sentinel_master_name: ""
+              sentinel_username: ""
+              sentinel_password: ""
+              sentinel_addresses: []
+              cluster_addresses: []
+              max_redirects: null
+          api_key: APIVg6jLoiMwFHp
+          api_secret: O7CKx1ptmrBOtM6bMePQq0derknyE5jbjnYXlRm4oG0
+          ws_url: wss://livekit.myhost.com
+          rtmp_port: 1935
+          whip_port: 8080
+          http_relay_port: 9090
+          logging:
+              json: false
+              level: ""
+          development: false
+          rtc_config:
+              udp_port: 7885
+              use_external_ip: false
+              enable_loopback_candidate: false
+          cpu_cost:
+              rtmp_cpu_cost: 2.0
+              whip_cpu_cost: 2.0
+              whip_bypass_transcoding_cpu_cost: 0.1
+              url_cpu_cost: 2
+
+      - path: /opt/livekit/acme-dns-cred.json
+        content: |
+          {
+            "myhost.com": {
+              "username": "<username>",
+              "password": "<password>",
+              "fulldomain": "<full domain from registration response>",
+              "subdomain": "<subdomain>",
+              "server_url": "<server URL>"
+            }
+          }
+
+
+    runcmd:
+      - curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+      - chmod 755 /usr/local/bin/docker-compose
+      - chmod 755 /opt/livekit/update_ip.sh
+      - /opt/livekit/update_ip.sh
+      - systemctl enable livekit-docker
+      - systemctl start livekit-docker
+      - unlink /etc/resolv.conf
+      - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+      - reboot
+
+  ssh:
+    install-server: true
+  network:
+    network:
+      version: 2
+      ethernets:
+        enwild:
+          match:
+            name: en*
+          addresses:
+            - 192.168.1.47/24
+          dhcp4: false
+          gateway4: 192.168.1.254
+          nameservers:
+            addresses:
+              - 192.168.1.3
